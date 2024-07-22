@@ -2,184 +2,153 @@
 // Combined code from all files
 
 import React, { useState, useEffect, useRef } from 'react';
-import { SafeAreaView, StyleSheet, Text, View, Button, TouchableOpacity } from 'react-native';
+import { StyleSheet, Text, View, Button, Dimensions } from 'react-native';
 
-const CELL_SIZE = 20;
-const GRID_SIZE = 20;
+// Game.js
+export const Game = () => {
+  const GRID_SIZE = 20;
+  const CELL_SIZE = 20;
 
-const getRandomFoodPosition = () => {
-    const x = Math.floor(Math.random() * GRID_SIZE);
-    const y = Math.floor(Math.random() * GRID_SIZE);
-    return { x, y };
-};
+  const getInitialSnake = () => [
+    { x: 8 * CELL_SIZE, y: 5 * CELL_SIZE },
+    { x: 7 * CELL_SIZE, y: 5 * CELL_SIZE },
+  ];
 
-const Game = () => {
-    const [snake, setSnake] = useState([{ x: 10, y: 10 }]);
-    const [food, setFood] = useState(getRandomFoodPosition());
-    const [direction, setDirection] = useState({ x: 1, y: 0 });
-    const [isGameOver, setIsGameOver] = useState(false);
+  const getRandomFood = () => ({
+    x: Math.floor(Math.random() * GRID_SIZE) * CELL_SIZE,
+    y: Math.floor(Math.random() * GRID_SIZE) * CELL_SIZE,
+  });
 
-    const interval = useRef(null);
+  const [snake, setSnake] = useState(getInitialSnake());
+  const [food, setFood] = useState(getRandomFood());
+  const [direction, setDirection] = useState('RIGHT');
+  const [gameOver, setGameOver] = useState(false);
 
-    const moveSnake = () => {
-        setSnake(prevSnake => {
-            const newSnake = [...prevSnake];
-            const head = { ...newSnake[0] };
+  const intervalRef = useRef();
 
-            head.x += direction.x;
-            head.y += direction.y;
+  const moveSnake = () => {
+    const snakeHead = snake[0];
+    let newHead;
 
-            if (head.x >= GRID_SIZE || head.y >= GRID_SIZE || head.x < 0 || head.y < 0) {
-                setIsGameOver(true);
-            } else {
-                newSnake.unshift(head);
+    if (direction === 'RIGHT') newHead = { x: snakeHead.x + CELL_SIZE, y: snakeHead.y };
+    else if (direction === 'DOWN') newHead = { x: snakeHead.x, y: snakeHead.y + CELL_SIZE };
+    else if (direction === 'LEFT') newHead = { x: snakeHead.x - CELL_SIZE, y: snakeHead.y };
+    else if (direction === 'UP') newHead = { x: snakeHead.x, y: snakeHead.y - CELL_SIZE };
 
-                if (head.x === food.x && head.y === food.y) {
-                    setFood(getRandomFoodPosition());
-                } else {
-                    newSnake.pop();
-                }
-            }
-            return newSnake;
-        });
-    };
+    const newSnake = [newHead, ...snake];
+    if (newHead.x === food.x && newHead.y === food.y) {
+      setFood(getRandomFood());
+    } else {
+      newSnake.pop();
+    }
 
-    const handleDirectionChange = (x, y) => {
-        setDirection({ x, y });
-    };
+    setSnake(newSnake);
+    checkGameOver(newSnake);
+  };
 
-    useEffect(() => {
-        if (!isGameOver) {
-            interval.current = setInterval(moveSnake, 200);
-            return () => clearInterval(interval.current);
-        }
-    }, [direction, isGameOver]);
+  const checkGameOver = (snake) => {
+    const snakeHead = snake[0];
+    for (let i = 4; i < snake.length; i++) {
+      if (snakeHead.x === snake[i].x && snakeHead.y === snake[i].y) {
+        setGameOver(true);
+        clearInterval(intervalRef.current);
+        return;
+      }
+    }
 
-    const handleReset = () => {
-        setSnake([{ x: 10, y: 10 }]);
-        setFood(getRandomFoodPosition());
-        setDirection({ x: 1, y: 0 });
-        setIsGameOver(false);
-    };
+    if (snakeHead.x < 0 || snakeHead.x >= GRID_SIZE * CELL_SIZE || snakeHead.y < 0 || snakeHead.y >= GRID_SIZE * CELL_SIZE) {
+      setGameOver(true);
+      clearInterval(intervalRef.current);
+    }
+  };
 
-    return (
-        <View style={styles.gameContainer}>
-            <View style={styles.grid}>
-                {snake.map((segment, index) => (
-                    <View
-                        key={index}
-                        style={[styles.snakeSegment, { left: segment.x * CELL_SIZE, top: segment.y * CELL_SIZE }]}
-                    />
-                ))}
-                <View
-                    style={[
-                        styles.food,
-                        { left: food.x * CELL_SIZE, top: food.y * CELL_SIZE },
-                    ]}
-                />
-            </View>
-            <View style={styles.controls}>
-                <TouchableOpacity onPress={() => handleDirectionChange(0, -1)} style={styles.controlButton}>
-                    <Text style={styles.controlButtonText}>Up</Text>
-                </TouchableOpacity>
-                <View style={styles.horizontalControls}>
-                    <TouchableOpacity onPress={() => handleDirectionChange(-1, 0)} style={styles.controlButton}>
-                        <Text style={styles.controlButtonText}>Left</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => handleDirectionChange(1, 0)} style={styles.controlButton}>
-                        <Text style={styles.controlButtonText}>Right</Text>
-                    </TouchableOpacity>
-                </View>
-                <TouchableOpacity onPress={() => handleDirectionChange(0, 1)} style={styles.controlButton}>
-                    <Text style={styles.controlButtonText}>Down</Text>
-                </TouchableOpacity>
-            </View>
-            {isGameOver && (
-                <View style={styles.gameOver}>
-                    <Text style={styles.gameOverText}>Game Over</Text>
-                    <Button title="Restart" onPress={handleReset} />
-                </View>
-            )}
-        </View>
-    );
+  useEffect(() => {
+    if (gameOver) return;
+    intervalRef.current = setInterval(moveSnake, 200);
+    return () => clearInterval(intervalRef.current);
+  }, [snake, direction, gameOver]);
+
+  const handleKeyPress = (e) => {
+    if (e.key === 'ArrowUp' && direction !== 'DOWN') setDirection('UP');
+    else if (e.key === 'ArrowDown' && direction !== 'UP') setDirection('DOWN');
+    else if (e.key === 'ArrowLeft' && direction !== 'RIGHT') setDirection('LEFT');
+    else if (e.key === 'ArrowRight' && direction !== 'LEFT') setDirection('RIGHT');
+  };
+
+  return (
+    <View style={styles.container} tabIndex="0" onKeyDown={handleKeyPress}>
+      {snake.map((segment, index) => (
+        <View key={index} style={{ ...styles.snake, top: segment.y, left: segment.x }} />
+      ))}
+      <View style={{ ...styles.food, top: food.y, left: food.x }} />
+      {gameOver && <Text style={styles.gameOver}>GAME OVER</Text>}
+    </View>
+  );
 };
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        marginTop: 20,
-        backgroundColor: '#FFF',
-    },
-    title: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        textAlign: 'center',
-        marginVertical: 20,
-    },
-    gameContainer: {
-        flex: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    grid: {
-        position: 'relative',
-        width: GRID_SIZE * CELL_SIZE,
-        height: GRID_SIZE * CELL_SIZE,
-        borderWidth: 1,
-        borderColor: '#000',
-    },
-    snakeSegment: {
-        position: 'absolute',
-        width: CELL_SIZE,
-        height: CELL_SIZE,
-        backgroundColor: 'green',
-    },
-    food: {
-        position: 'absolute',
-        width: CELL_SIZE,
-        height: CELL_SIZE,
-        backgroundColor: 'red',
-    },
-    controls: {
-        marginTop: 20,
-        alignItems: 'center',
-    },
-    controlButton: {
-        margin: 10,
-        padding: 10,
-        backgroundColor: '#DDD',
-        borderWidth: 1,
-        borderColor: '#000',
-    },
-    controlButtonText: {
-        fontSize: 18,
-    },
-    horizontalControls: {
-        flexDirection: 'row',
-    },
-    gameOver: {
-        position: 'absolute',
-        top: '50%',
-        left: '50%',
-        transform: [{ translateX: -50 }, { translateY: -50 }],
-        alignItems: 'center',
-        backgroundColor: '#FFF',
-        padding: 20,
-        borderColor: '#000',
-        borderWidth: 1,
-    },
-    gameOverText: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        marginBottom: 10,
-    },
+  container: {
+    width: GRID_SIZE * CELL_SIZE,
+    height: GRID_SIZE * CELL_SIZE,
+    position: 'relative',
+    borderWidth: 1,
+  },
+  snake: {
+    position: 'absolute',
+    width: CELL_SIZE,
+    height: CELL_SIZE,
+    backgroundColor: 'green',
+  },
+  food: {
+    position: 'absolute',
+    width: CELL_SIZE,
+    height: CELL_SIZE,
+    backgroundColor: 'red',
+  },
+  gameOver: {
+    position: 'absolute',
+    top: 50,
+    left: 50,
+    color: 'red',
+    fontSize: 20,
+    textAlign: 'center',
+  },
 });
 
+// App.js
 export default function App() {
-    return (
-        <SafeAreaView style={styles.container}>
-            <Text style={styles.title}>Snake Game</Text>
-            <Game />
-        </SafeAreaView>
-    );
+  const [running, setRunning] = useState(false);
+
+  const handleStart = () => {
+    setRunning(true);
+  };
+
+  const handleRestart = () => {
+    setRunning(false);
+  };
+
+  return (
+    <View style={styles.appContainer}>
+      <Text style={styles.title}>Snake Game</Text>
+      {running ? (
+        <Game />
+      ) : (
+        <Button title="Start Game" onPress={handleStart} />
+      )}
+      {running && <Button title="Restart" onPress={handleRestart} />}
+    </View>
+  );
 }
+
+const styles = StyleSheet.create({
+  appContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+  },
+  title: {
+    fontSize: 24,
+    marginBottom: 20,
+  },
+});
